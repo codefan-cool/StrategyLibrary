@@ -175,9 +175,9 @@ string stopLossTick(integer timeStamp, float price)
       amount = lookbackTransactions[0].price * positionVolume;
       sellTotal += amount;
       sellCount ++;
-      print(".       sell total is " + toString(sellTotal));
+      // print(".       sell total is " + toString(sellTotal));
       position = "flat";
-      print("@ Long position closed : "+ toString(positionVolume) + "( price- " + toString(price) + ", time- " + timeToString(timeStamp, "yyyy-MM-dd hh:mm:ss") + " )");
+      // print("@ Long position closed : "+ toString(positionVolume) + "( price- " + toString(price) + ", time- " + timeToString(timeStamp, "yyyy-MM-dd hh:mm:ss") + " )");
       return "long";
     }
   }
@@ -194,9 +194,9 @@ string stopLossTick(integer timeStamp, float price)
       amount = lookbackTransactions[0].price * positionVolume;
       buyTotal += amount;
       buyCount ++;  
-      print(".       buy total is " + toString(buyTotal));
+      // print(".       buy total is " + toString(buyTotal));
       position = "flat";
-      print("@ Short position closed : "+ toString(positionVolume) + "( price- " + toString(price) + ", time- " + timeToString(timeStamp, "yyyy-MM-dd hh:mm:ss") + " )");
+      // print("@ Short position closed : "+ toString(positionVolume) + "( price- " + toString(price) + ", time- " + timeToString(timeStamp, "yyyy-MM-dd hh:mm:ss") + " )");
       return "short";
     }
   }
