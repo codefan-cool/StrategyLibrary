@@ -599,7 +599,7 @@ void bollingerBandsBackTest(string exchange, string symbol, integer period, floa
   
   setChartsTime(lookbackTransactions[0].tradeTime +  30 * 24 * 60*1000000);
 
-  addTimer(1);
+  addTimer(10);
 }
 
 void bollingerBandsBackTestTick()
@@ -610,12 +610,12 @@ void bollingerBandsBackTestTick()
   // if all transactions are tested, finish the backtest
   if (sizeof(lookbackTransactions) == 0)
   {
-    removeTimer(1);
+    removeTimer(10);
     return;
   }
   if (sizeof(lookbackTransactions) == 1)
   {
-    removeTimer(1);
+    removeTimer(10);
 
     if (buyCount < sellCount)
     {
@@ -812,7 +812,3 @@ event onTimedOut(integer interval)
     }
   }
 }
-
-// bollingerBands("Centrabit", "LTC/BTC", 100, 2.0, "1m", 0.01);
-bollingerBandsBackTest("Centrabit", "LTC/BTC", 100, 2.0, "3m", 1.0, "2022-11-25 00:00:00", "2022-11-26 20:00:00");
-stopLoss(0.008);

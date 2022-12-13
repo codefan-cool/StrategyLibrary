@@ -85,6 +85,7 @@ integer sellCount = 0;
 float lastPrice = 0.0;
 float lastOwnOrderPrice = 0.0;
 transaction lookbackTransactions[];   // Only used in backtestmode, it keeps the lookback transactions in given period
+integer lookbackId = 0;
 
 // Flags for running algos
 boolean isBollingerBandsRunning = false;
@@ -126,38 +127,18 @@ boolean isStopLossRunning = false;
 
   ===================================================================================== */
 
-// Stop-loss settings and flags
 float stopLossPip = 0.1;
 float lockedPriceForProfit = 0.0;
 string positionStoppedAt = "";
 
-/* Execute the stop-loss algo
-  @ prototype
-      void stopLoss(float pip)
-  @ params
-      pip: pip setting value
-  @ return
-      void */
 void stopLoss(float pip)
 {
   stopLossPip = pip;
   isStopLossRunning = true;
 }
 
-/* Determining and excuting the stop-loss order
-  @ prototype
-      string stopLossTick(integer timeStamp, float price)
-  @ params
-      timestamp: the time stamp for the price moment
-      price: the current price
-  @ return
-      "" : didn't stop the position
-      "long" : stopped at long position
-      "short" : stopped at short position */
 string stopLossTick(integer timeStamp, float price)
 {
-  if (sizeof(lookbackTransactions) == 0)
-    return "";
   if (position == "flat")
     return "";
   float limitPrice;
@@ -172,12 +153,12 @@ string stopLossTick(integer timeStamp, float price)
         sellMarket(exchangeSetting, symbolSetting, positionVolume, 0);
       }
       drawPoint(timeStamp, price, true, "sell");
-      amount = lookbackTransactions[0].price * positionVolume;
+      amount = lookbackTransactions[lookbackId].price * positionVolume;
       sellTotal += amount;
       sellCount ++;
-      // print(".       sell total is " + toString(sellTotal));
+      print(".       sell total is " + toString(sellTotal));
       position = "flat";
-      print("! Long position closed for stop loss : "+ toString(positionVolume) + "( price- " + toString(price) + ", time- " + timeToString(timeStamp, "yyyy-MM-dd hh:mm:ss") + " )");
+      print("@ Long position closed : "+ toString(positionVolume) + "( price- " + toString(price) + ", time- " + timeToString(timeStamp, "yyyy-MM-dd hh:mm:ss") + " )");
       return "long";
     }
   }
@@ -191,29 +172,20 @@ string stopLossTick(integer timeStamp, float price)
         buyMarket(exchangeSetting, symbolSetting, positionVolume, 0);
       }
       drawPoint(timeStamp, price, false, "buy");
-      amount = lookbackTransactions[0].price * positionVolume;
+      amount = lookbackTransactions[lookbackId].price * positionVolume;
       buyTotal += amount;
       buyCount ++;  
-      // print(".       buy total is " + toString(buyTotal));
+      print(".       buy total is " + toString(buyTotal));
       position = "flat";
-      print("! Short position closed for stop loss: "+ toString(positionVolume) + "( price- " + toString(price) + ", time- " + timeToString(timeStamp, "yyyy-MM-dd hh:mm:ss") + " )");
+      print("@ Short position closed : "+ toString(positionVolume) + "( price- " + toString(price) + ", time- " + timeToString(timeStamp, "yyyy-MM-dd hh:mm:ss") + " )");
       return "short";
     }
   }
   return "";
 }
 
-/* Lock in profit
-  @ prototype
-      boolean lockProfit(float price)
-  @ params
-      price: the current price
-  @ return
-      true: the new profit locked in
-      false: didn't lock any profit */
 boolean lockProfit(float price)
 {
-  // if (isStopLossRunning == false)
   return false;
   if (position == "flat" || position == "long")
   {
@@ -238,7 +210,6 @@ boolean lockProfit(float price)
   lockedPriceForProfit = 0.0;
   return false;
 }
-
 
 /* Bollinger Bands trading strategy
 
@@ -295,7 +266,7 @@ integer bollingerSettingPeriod = 20;
 float bollingerSettingDeviation = 2.0;
 integer bollingerBarTimeLengthInMinutes = 0;
 
-float bollingerSMA = 100.0;
+float bollingerSMA = 0.0;
 float bollingerSTDDEV = 0.0;
 float bollingerUpperBand = 0.0;
 float bollingerLowerBand = 0.0;
@@ -374,9 +345,7 @@ void bollingerBands(string exchange, string symbol, integer period, float deviat
   setChartsExchange(exchange);
   setChartsSymbol(symbol);
   clearCharts();
-  setChartsTime(getCurrentTime() +  30 * 24 * 60*1000000);
-
-  // print("SMA period is " + toString(sizeof(lookbackBars)));
+  print("SMA period is " + toString(sizeof(lookbackBars)));
 
   bollingerSMA = calcSMA(bollingerInputPriceArray);
   bollingerSTDDEV = calcStdDev(bollingerSMA, bollingerInputPriceArray);
@@ -397,8 +366,6 @@ void bollingerBands(string exchange, string symbol, integer period, float deviat
   lastPrice = lookbackBars[sizeof(lookbackBars)-1].closePrice;
 
   isBollingerBandsRunning = true;
-
-  print("--------------   Running   -------------------");
 
   addTimer(bollingerBarTimeLengthInMinutes * 60 * 1000);
 }
@@ -428,11 +395,10 @@ void bollingerBandsTick(float price)
 {
   lastPrice = price;
 
-  float amount;
-  if (price > bollingerUpperBand)
-  {
-    if (position == "long" || position == "flat")
+    if (price > bollingerUpperBand)
     {
+      if (position == "long" || position == "flat")
+      {
       sell(exchangeSetting, symbolSetting, positionVolume, price, 0);
       drawPoint(getCurrentTime(), price, true, "sell");
       print("--- Market sell ordered : "+ toString(positionVolume) + "( price- " + toString(price) + ", time- " + timeToString(getCurrentTime(), "yyyy-MM-dd hh:mm:ss") + " )");
@@ -443,9 +409,6 @@ void bollingerBandsTick(float price)
         initOpenPosition = "short";
       }
       positionStoppedAt = "";
-      amount = lookbackTransactions[0].price * positionVolume;
-      sellTotal += amount;
-      sellCount ++;
       return;
     }
   }
@@ -463,9 +426,6 @@ void bollingerBandsTick(float price)
         initOpenPosition = "long";
       }
       positionStoppedAt = "";
-      amount = lookbackTransactions[0].price * positionVolume;
-      buyTotal += amount;
-      buyCount ++;  
       return;
     }
   }
@@ -503,6 +463,169 @@ void bollingerBandsTick(float price)
       volume: amount of trading(buy or sell) at once
   @ return
       none */
+
+
+void bollingerBandsBackTestTick()
+{
+  float amount;
+
+  // if all transactions are tested, finish the backtest
+  if (sizeof(lookbackTransactions) == 1)
+  {
+    if (buyTotal < sellTotal)
+    {
+      // buy(exchangeSetting, symbolSetting, positionVolume, lookbackTransactions[lookbackId].price, 0);
+      drawPoint(lookbackTransactions[lookbackId].tradeTime, lookbackTransactions[lookbackId].price, false, "buy");
+      print("--- Market buy ordered : "+ toString(positionVolume) + "( price- " + toString(lookbackTransactions[lookbackId].price) + ", time- " + timeToString(lookbackTransactions[lookbackId].tradeTime, "yyyy-MM-dd hh:mm:ss") + " )");
+      amount = lookbackTransactions[lookbackId].price * positionVolume;
+      buyTotal += amount;
+      buyCount ++;  
+      print(".       buy total is " + toString(buyTotal));
+    }
+    if (sellTotal < buyTotal)
+    {
+      // sell(exchangeSetting, symbolSetting, positionVolume, lookbackTransactions[lookbackId].price, 0);
+      drawPoint(lookbackTransactions[lookbackId].tradeTime, lookbackTransactions[lookbackId].price, true, "sell");
+      print("--- Market buy ordered : "+ toString(positionVolume) + "( price- " + toString(lookbackTransactions[lookbackId].price) + ", time- " + timeToString(lookbackTransactions[lookbackId].tradeTime, "yyyy-MM-dd hh:mm:ss") + " )");
+      amount = lookbackTransactions[lookbackId].price * positionVolume;
+      sellTotal += amount;
+      sellCount ++;
+      print(".       sell total is " + toString(sellTotal));
+    }
+
+
+    // print(toString(bollingerBackTestTickCounter) + "times ticked");
+    print("--------------   Result   -------------------");
+    print("Total buy : " + toString(buyTotal) + " in " + toString(buyCount) );
+    print("Total sell : " + toString(sellTotal) + " in " + toString(sellCount) );
+    print("Total profit : " + toString(sellTotal-buyTotal));
+    return;
+  }
+
+  lastPrice = lookbackTransactions[lookbackId].price;
+
+  // Update bollinger bands when the step time is reached
+  integer step = bollingerBarTimeLengthInMinutes * 2;
+  if (((bollingerBackTestTickCounter+1) % step) == 0)   // Update bollinger bands
+  {
+    // if (((bollingerBackTestTickCounter+1) % 10000) == 0)
+    // {
+    //   setChartsTime(lookbackTransactions[lookbackId].tradeTime +  10 * 24 * 60*1000000);
+    // }
+    // print("----------------------------------------");
+    // print("SMA input added : " + toString(lookbackTransactions[lookbackId].price) + "  Time:" + timeToString(getCurrentTime(), "yyyy-MM-dd hh:mm:ss"));
+    // print("Old SMA: " + toString(bollingerSMA));
+    bollingerInputPriceArray >> lookbackTransactions[lookbackId].price;
+    delete bollingerInputPriceArray[0];
+
+    bollingerSMA = calcSMA(bollingerInputPriceArray);
+    bollingerSTDDEV = calcStdDev(bollingerSMA, bollingerInputPriceArray);
+    bollingerUpperBand = calcBollingerUpperBand(bollingerSMA, bollingerSTDDEV, bollingerSettingDeviation);
+    bollingerLowerBand = calcBollingerLowerBand(bollingerSMA, bollingerSTDDEV, bollingerSettingDeviation);
+
+    setLineName("middle");
+    setLineColor("yellow");
+    drawLine(lookbackTransactions[lookbackId].tradeTime, bollingerSMA);
+
+    setLineName("uppper");
+    setLineColor("green");
+    drawLine(lookbackTransactions[lookbackId].tradeTime, bollingerUpperBand);
+
+    setLineName("lower");
+    setLineColor("red");
+    drawLine(lookbackTransactions[lookbackId].tradeTime, bollingerLowerBand);
+    // print("New SMA :" + toString(bollingerSMA));
+  }
+  
+  // print(timeToString(lookbackTransactions[bollingerBackTestTickCounter].tradeTime, "yyyy-MM-dd hh:mm:ss"));
+
+  if (lookbackTransactions[lookbackId].price > bollingerUpperBand)
+  {
+    if (position == "long" || position == "flat")
+    {
+      if (positionStoppedAt == "short")
+      {
+        bollingerBackTestTickCounter ++;
+        return;
+      }
+      if (lockProfit(lookbackTransactions[lookbackId].price) == false)
+      {
+        // sell(exchangeSetting, symbolSetting, positionVolume, lookbackTransactions[lookbackId].price, 0);
+        drawPoint(lookbackTransactions[lookbackId].tradeTime, lookbackTransactions[lookbackId].price, true, "sell");
+        print("--- Market sell ordered : "+ toString(positionVolume) + "( price- " + toString(lookbackTransactions[lookbackId].price) + ", time- " + timeToString(lookbackTransactions[lookbackId].tradeTime, "yyyy-MM-dd hh:mm:ss") + " )");
+        lastOwnOrderPrice = lookbackTransactions[lookbackId].price;
+        if (position == "flat")
+        {
+          initOpenPosition = "short";
+        }
+        amount = lookbackTransactions[lookbackId].price * positionVolume;
+        sellTotal += amount;
+        sellCount ++;
+        print(".       sell total is " + toString(sellTotal));
+        position = "short";
+        positionStoppedAt = "";        
+      }
+      bollingerBackTestTickCounter ++;
+      return;
+    }
+    // if the position is "short"
+    if (isStopLossRunning == true && positionStoppedAt == "")  // Stop-loss algo stepping
+    {
+      positionStoppedAt = stopLossTick(lookbackTransactions[lookbackId].tradeTime, lookbackTransactions[lookbackId].price);
+      if (positionStoppedAt != "")
+      { 
+        bollingerBackTestTickCounter ++;
+        return;
+      }
+    }   
+  }
+  if (lookbackTransactions[lookbackId].price < bollingerLowerBand)
+  {
+    if (position == "short" || position == "flat")
+    {
+      if (positionStoppedAt == "long")
+      {
+        bollingerBackTestTickCounter ++;
+        return;
+      }
+      if (lockProfit(lookbackTransactions[lookbackId].price) == false)
+      {
+        // buy(exchangeSetting, symbolSetting, positionVolume, lookbackTransactions[lookbackId].price, 0);
+        drawPoint(lookbackTransactions[lookbackId].tradeTime, lookbackTransactions[lookbackId].price, false, "buy");
+        print("--- Market buy ordered : "+ toString(positionVolume) + "( price- " + toString(lookbackTransactions[lookbackId].price) + ", time- " + timeToString(lookbackTransactions[lookbackId].tradeTime, "yyyy-MM-dd hh:mm:ss") + " )");
+        lastOwnOrderPrice = lookbackTransactions[lookbackId].price;
+        if (position == "flat")
+        {
+          initOpenPosition = "long";
+        }
+        amount = lookbackTransactions[lookbackId].price * positionVolume;
+        buyTotal += amount;
+        buyCount ++;  
+        print(".       buy total is " + toString(buyTotal));
+        position = "long";
+        positionStoppedAt = "";        
+      }
+      bollingerBackTestTickCounter ++;
+      return;
+    }
+    // if the position is "short"
+    if (isStopLossRunning == true && positionStoppedAt == "")  // Stop-loss algo stepping
+    {
+      positionStoppedAt = stopLossTick(lookbackTransactions[lookbackId].tradeTime, lookbackTransactions[lookbackId].price);
+      if (positionStoppedAt != "")
+      { 
+        bollingerBackTestTickCounter ++;
+        return;
+      }
+    }  
+  }
+  // print("SMA :" + toString(bollingerSMA));
+  // print("bollingerUpperBand :" + toString(bollingerUpperBand));
+  // print("bollingerLowerBand :" + toString(bollingerLowerBand));  
+
+  bollingerBackTestTickCounter ++;
+}
+
 void bollingerBandsBackTest(string exchange, string symbol, integer period, float deviation, string typeStepSymbol, float volume, string startDateTime, string endDateTime)
 {  
   bollingerBarTimeLengthInMinutes = toInteger(substring(typeStepSymbol, 0, strlength(typeStepSymbol)-1)); // 1m, 5m, 15m, 30min, 1h, 4h, 1d, 1w, 1M
@@ -539,8 +662,9 @@ void bollingerBandsBackTest(string exchange, string symbol, integer period, floa
 
   print("Fetching transactions from " + startDateTime + " to " + endDateTime + "...");
   lookbackTransactions = getPubTrades(exchangeSetting, symbolSetting, timeStart, timeEnd);
+lookbackId = 0;
   // print("   Result : " + toString(sizeof(lookbackTransactions)) + " of transactions are fetched.");
-  // print("Started at : " + timeToString(lookbackTransactions[0].tradeTime, "yyyy-MM-dd hh:mm:ss"));
+  // print("Started at : " + timeToString(lookbackTransactions[lookbackId].tradeTime, "yyyy-MM-dd hh:mm:ss"));
   // print("Ended at : " + timeToString(lookbackTransactions[sizeof(lookbackTransactions)-1].tradeTime, "yyyy-MM-dd hh:mm:ss"));
 
   // init lookback bar generating
@@ -561,7 +685,7 @@ void bollingerBandsBackTest(string exchange, string symbol, integer period, floa
     k+= step;
   }
 
-  // bar initialBars[] = getTimeBars(exchangeSetting, symbolSetting, lookbackTransactions[0].tradeTime, period, bollingerBarTimeLengthInMinutes * 60 * 1000 * 1000);
+  // bar initialBars[] = getTimeBars(exchangeSetting, symbolSetting, lookbackTransactions[lookbackId].tradeTime, period, bollingerBarTimeLengthInMinutes * 60 * 1000 * 1000);
   // for (integer i=0; i<sizeof(initialBars); i++)
   // {
   //   bollingerInputPriceArray >> initialBars[i].closePrice;
@@ -585,7 +709,7 @@ void bollingerBandsBackTest(string exchange, string symbol, integer period, floa
 
   exchangeSetting = exchange;
   symbolSetting = symbol;
-  print("Initial price is " + toString(lookbackTransactions[0].price));
+  print("Initial price is " + toString(lookbackTransactions[lookbackId].price));
 
   bollingerSettingPeriod = period;
   bollingerSettingDeviation = deviation;
@@ -597,183 +721,10 @@ void bollingerBandsBackTest(string exchange, string symbol, integer period, floa
 
   print("--------------   Running   -------------------");
   
-  setChartsTime(lookbackTransactions[0].tradeTime +  30 * 24 * 60*1000000);
+  setChartsTime(lookbackTransactions[lookbackId].tradeTime +  30 * 24 * 60*1000000);
 
-  addTimer(1);
-}
-
-void bollingerBandsBackTestTick()
-{
-  float amount;
-
-  // print(toString(sizeof(lookbackTransactions)));
-  // if all transactions are tested, finish the backtest
-  if (sizeof(lookbackTransactions) == 0)
-  {
-    removeTimer(1);
-    return;
-  }
-  if (sizeof(lookbackTransactions) == 1)
-  {
-    removeTimer(1);
-
-    if (buyCount < sellCount)
-    {
-      // buy(exchangeSetting, symbolSetting, positionVolume, lookbackTransactions[0].price, 0);
-      drawPoint(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price, false, "buy");
-      print("--- Market buy ordered : "+ toString(positionVolume) + "( price- " + toString(lookbackTransactions[0].price) + ", time- " + timeToString(lookbackTransactions[0].tradeTime, "yyyy-MM-dd hh:mm:ss") + " )");
-      amount = lookbackTransactions[0].price * positionVolume;
-      buyTotal += amount;
-      buyCount ++;  
-      print(".       buy total is " + toString(buyTotal));
-    }
-    if (sellCount < buyCount)
-    {
-      // sell(exchangeSetting, symbolSetting, positionVolume, lookbackTransactions[0].price, 0);
-      drawPoint(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price, true, "sell");
-      print("--- Market sell ordered : "+ toString(positionVolume) + "( price- " + toString(lookbackTransactions[0].price) + ", time- " + timeToString(lookbackTransactions[0].tradeTime, "yyyy-MM-dd hh:mm:ss") + " )");
-      amount = lookbackTransactions[0].price * positionVolume;
-      sellTotal += amount;
-      sellCount ++;
-      print(".       sell total is " + toString(sellTotal));
-    }
-
-    // print(toString(bollingerBackTestTickCounter) + "times ticked");
-    print("--------------   Result   -------------------");
-    print("Total buy : " + toString(buyTotal) + " in " + toString(buyCount) );
-    print("Total sell : " + toString(sellTotal) + " in " + toString(sellCount) );
-    print("Total profit : " + toString(sellTotal-buyTotal));
-    return;
-  }
-
-  lastPrice = lookbackTransactions[0].price;
-
-  // Update bollinger bands when the step time is reached
-  integer step = bollingerBarTimeLengthInMinutes * 2;
-  if (((bollingerBackTestTickCounter+1) % step) == 0)   // Update bollinger bands
-  {
-    // if (((bollingerBackTestTickCounter+1) % 10000) == 0)
-    // {
-    //   setChartsTime(lookbackTransactions[0].tradeTime +  10 * 24 * 60*1000000);
-    // }
-    // print("----------------------------------------");
-    // print("SMA input added : " + toString(lookbackTransactions[0].price) + "  Time:" + timeToString(getCurrentTime(), "yyyy-MM-dd hh:mm:ss"));
-    // print("Old SMA: " + toString(bollingerSMA));
-    bollingerInputPriceArray >> lookbackTransactions[0].price;
-    delete bollingerInputPriceArray[0];
-
-    bollingerSMA = calcSMA(bollingerInputPriceArray);
-    bollingerSTDDEV = calcStdDev(bollingerSMA, bollingerInputPriceArray);
-    bollingerUpperBand = calcBollingerUpperBand(bollingerSMA, bollingerSTDDEV, bollingerSettingDeviation);
-    bollingerLowerBand = calcBollingerLowerBand(bollingerSMA, bollingerSTDDEV, bollingerSettingDeviation);
-
-    setLineName("middle");
-    setLineColor("yellow");
-    drawLine(lookbackTransactions[0].tradeTime, bollingerSMA);
-
-    setLineName("uppper");
-    setLineColor("green");
-    drawLine(lookbackTransactions[0].tradeTime, bollingerUpperBand);
-
-    setLineName("lower");
-    setLineColor("red");
-    drawLine(lookbackTransactions[0].tradeTime, bollingerLowerBand);
-    // print("New SMA :" + toString(bollingerSMA));
-  }
-  if (step > 100 && ((bollingerBackTestTickCounter+1) % 10) == 0)
-  {
-    setLineName("middle");
-    setLineColor("yellow");
-    drawLine(lookbackTransactions[0].tradeTime, bollingerSMA);
-
-    setLineName("uppper");
-    setLineColor("green");
-    drawLine(lookbackTransactions[0].tradeTime, bollingerUpperBand);
-
-    setLineName("lower");
-    setLineColor("red");
-    drawLine(lookbackTransactions[0].tradeTime, bollingerLowerBand);    
-  }
-  
-  // print(timeToString(lookbackTransactions[bollingerBackTestTickCounter].tradeTime, "yyyy-MM-dd hh:mm:ss"));
-
-  if (lookbackTransactions[0].price > bollingerUpperBand)
-  {
-    if (position == "long" || position == "flat")
-    {
-      if (positionStoppedAt == "short")
-      {
-        return;
-      }
-      if (lockProfit(lookbackTransactions[0].price) == false)
-      {
-        // sell(exchangeSetting, symbolSetting, positionVolume, lookbackTransactions[0].price, 0);
-        drawPoint(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price, true, "sell");
-        print("--- Market sell ordered : "+ toString(positionVolume) + "( price- " + toString(lookbackTransactions[0].price) + ", time- " + timeToString(lookbackTransactions[0].tradeTime, "yyyy-MM-dd hh:mm:ss") + " )");
-        lastOwnOrderPrice = lookbackTransactions[0].price;
-        if (position == "flat")
-        {
-          initOpenPosition = "short";
-        }
-        amount = lookbackTransactions[0].price * positionVolume;
-        sellTotal += amount;
-        sellCount ++;
-        // print(".       sell total is " + toString(sellTotal));
-        position = "short";
-        positionStoppedAt = "";        
-      }
-      return;
-    }
-    // if the position is "short"
-    if (isStopLossRunning == true && positionStoppedAt == "")  // Stop-loss algo stepping
-    {
-      positionStoppedAt = stopLossTick(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price);
-      if (positionStoppedAt != "")
-      { 
-        return;
-      }
-    }   
-  }
-  if (lookbackTransactions[0].price < bollingerLowerBand)
-  {
-    if (position == "short" || position == "flat")
-    {
-      if (positionStoppedAt == "long")
-      {
-        return;
-      }
-      if (lockProfit(lookbackTransactions[0].price) == false)
-      {
-        // buy(exchangeSetting, symbolSetting, positionVolume, lookbackTransactions[0].price, 0);
-        drawPoint(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price, false, "buy");
-        print("--- Market buy ordered : "+ toString(positionVolume) + "( price- " + toString(lookbackTransactions[0].price) + ", time- " + timeToString(lookbackTransactions[0].tradeTime, "yyyy-MM-dd hh:mm:ss") + " )");
-        lastOwnOrderPrice = lookbackTransactions[0].price;
-        if (position == "flat")
-        {
-          initOpenPosition = "long";
-        }
-        amount = lookbackTransactions[0].price * positionVolume;
-        buyTotal += amount;
-        buyCount ++;  
-        // print(".       buy total is " + toString(buyTotal));
-        position = "long";
-        positionStoppedAt = "";        
-      }
-      return;
-    }
-    // if the position is "short"
-    if (isStopLossRunning == true && positionStoppedAt == "")  // Stop-loss algo stepping
-    {
-      positionStoppedAt = stopLossTick(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price);
-      if (positionStoppedAt != "")
-      { 
-        return;
-      }
-    }  
-  }
-  // print("SMA :" + toString(bollingerSMA));
-  // print("bollingerUpperBand :" + toString(bollingerUpperBand));
-  // print("bollingerLowerBand :" + toString(bollingerLowerBand));  
+    for (lookbackId = 0; lookbackId < sizeof(lookbackTransactions); ++lookbackId)
+        bollingerBandsBackTestTick();
 }
 
 /* When the price changed detected
@@ -807,12 +758,10 @@ event onTimedOut(integer interval)
     else 
     {
       bollingerBandsBackTestTick();
-      bollingerBackTestTickCounter ++;
-      delete lookbackTransactions[0];
     }
   }
 }
 
-// bollingerBands("Centrabit", "LTC/BTC", 100, 2.0, "1m", 0.01);
-bollingerBandsBackTest("Centrabit", "LTC/BTC", 100, 2.0, "3m", 1.0, "2022-11-25 00:00:00", "2022-11-26 20:00:00");
+// bollingerBands("Centrabit", "LTC/BTC", 20, 2.0, "1m", 0.01);
+bollingerBandsBackTest("Centrabit", "LTC/BTC", 20, 2.0, "3m", 1.0, "2022-11-25 00:00:00", "2022-11-26 20:00:00");
 stopLoss(0.008);
