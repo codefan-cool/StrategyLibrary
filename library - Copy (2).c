@@ -219,6 +219,7 @@ string stopLossTick(integer timeStamp, float price)
       false: didn't lock any profit */
 boolean trailingStop(float price)
 {
+  return false;
   if (isStopLossRunning == false)
     return false;
   if (position == "flat" || position == "long")   // if the position is in 
