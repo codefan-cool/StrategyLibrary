@@ -11,6 +11,6 @@ import Charts;
 
 
 string strTest = "BollingerBands";
-strinsert(strTest, 0, "-StopLoss");
+string result = strinsert(strTest, 0, "-StopLoss");
 
-print(strTest);
+print(result);

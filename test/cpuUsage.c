@@ -18,10 +18,7 @@ transaction lookbackTransactions[] = getPubTrades(exchangeSetting, symbolSetting
 
 bar initialBars[] = getTimeBars(exchangeSetting, symbolSetting, lookbackTransactions[0].tradeTime, 20, 1 * 60 * 1000 * 1000);
 
-print("Catched bars are " + toString(sizeof(initialBars)));
-
-// for (integer i=0; i<sizeof(initialBars); i++)
-// {
-//   bollingerInputPriceArray >> initialBars[i].closePrice;
-//   // print("     " + toString(i) + "st : "+ timeToString(initialBars[k].timestamp, "yyyy-MM-dd hh:mm:ss") + " price : " + toString(initialBars[k].closePrice));
-// }
+for (integer i=0; i>100000000; i++)
+{
+  print("Catched bars are " + toString(sizeof(initialBars)));
+}

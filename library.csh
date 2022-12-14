@@ -172,6 +172,9 @@ string stopLossTick(integer timeStamp, float price)
         sellMarket(exchangeSetting, symbolSetting, positionVolume, 0);
       }
       drawPoint(timeStamp, price, true, "sell");
+      setLineName("direction");
+      setLineColor("green");
+      drawLine(timeStamp, price); 
       amount = lookbackTransactions[0].price * positionVolume;
       sellTotal += amount;
       sellCount ++;
@@ -191,6 +194,9 @@ string stopLossTick(integer timeStamp, float price)
         buyMarket(exchangeSetting, symbolSetting, positionVolume, 0);
       }
       drawPoint(timeStamp, price, false, "buy");
+      setLineName("direction");
+      setLineColor("green");
+      drawLine(timeStamp, price); 
       amount = lookbackTransactions[0].price * positionVolume;
       buyTotal += amount;
       buyCount ++;  
@@ -205,17 +211,17 @@ string stopLossTick(integer timeStamp, float price)
 
 /* Lock in profit
   @ prototype
-      boolean lockProfit(float price)
+      boolean trailingStop(float price)
   @ params
       price: the current price
   @ return
       true: the new profit locked in
       false: didn't lock any profit */
-boolean lockProfit(float price)
+boolean trailingStop(float price)
 {
-  // if (isStopLossRunning == false)
-  return false;
-  if (position == "flat" || position == "long")
+  if (isStopLossRunning == false)
+    return false;
+  if (position == "flat" || position == "long")   // if the position is in 
   {
     if (lockedPriceForProfit == 0.0 || lockedPriceForProfit < price)
     {
@@ -474,15 +480,15 @@ void bollingerBandsTick(float price)
   // print("bollingerLowerBand :" + toString(bollingerLowerBand));
 
     setLineName("middle");
-    setLineColor("yellow");
+    setLineColor("grey");
     drawLine(getCurrentTime(), bollingerSMA);
 
     setLineName("uppper");
-    setLineColor("green");
+    setLineColor("#293119");
     drawLine(getCurrentTime(), bollingerUpperBand);
 
     setLineName("lower");
-    setLineColor("red");
+    setLineColor("black");
     drawLine(getCurrentTime(), bollingerLowerBand);
 
   // setLineName("price");
@@ -599,7 +605,7 @@ void bollingerBandsBackTest(string exchange, string symbol, integer period, floa
   
   setChartsTime(lookbackTransactions[0].tradeTime +  30 * 24 * 60*1000000);
 
-  addTimer(10);
+  addTimer(1);
 }
 
 void bollingerBandsBackTestTick()
@@ -610,17 +616,28 @@ void bollingerBandsBackTestTick()
   // if all transactions are tested, finish the backtest
   if (sizeof(lookbackTransactions) == 0)
   {
-    removeTimer(10);
+    removeTimer(1);
     return;
   }
   if (sizeof(lookbackTransactions) == 1)
   {
-    removeTimer(10);
+    removeTimer(1);
 
     if (buyCount < sellCount)
     {
       // buy(exchangeSetting, symbolSetting, positionVolume, lookbackTransactions[0].price, 0);
       drawPoint(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price, false, "buy");
+      setLineName("direction");
+      // draw the profit or loss line
+      if (lookbackTransactions[0].price > lastOwnOrderPrice)
+      {          
+        setLineColor("green");
+      }
+      else
+      {
+        setLineColor("red");
+      }
+      drawLine(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price);   
       print("--- Market buy ordered : "+ toString(positionVolume) + "( price- " + toString(lookbackTransactions[0].price) + ", time- " + timeToString(lookbackTransactions[0].tradeTime, "yyyy-MM-dd hh:mm:ss") + " )");
       amount = lookbackTransactions[0].price * positionVolume;
       buyTotal += amount;
@@ -631,6 +648,18 @@ void bollingerBandsBackTestTick()
     {
       // sell(exchangeSetting, symbolSetting, positionVolume, lookbackTransactions[0].price, 0);
       drawPoint(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price, true, "sell");
+      setLineName("direction");
+      // draw the profit or loss line
+      if (lookbackTransactions[0].price > lastOwnOrderPrice)
+      {          
+        setLineColor("green");
+      }
+      else
+      {
+        setLineColor("red");
+      }
+      drawLine(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price);   
+
       print("--- Market sell ordered : "+ toString(positionVolume) + "( price- " + toString(lookbackTransactions[0].price) + ", time- " + timeToString(lookbackTransactions[0].tradeTime, "yyyy-MM-dd hh:mm:ss") + " )");
       amount = lookbackTransactions[0].price * positionVolume;
       sellTotal += amount;
@@ -668,30 +697,30 @@ void bollingerBandsBackTestTick()
     bollingerLowerBand = calcBollingerLowerBand(bollingerSMA, bollingerSTDDEV, bollingerSettingDeviation);
 
     setLineName("middle");
-    setLineColor("yellow");
+    setLineColor("grey");
     drawLine(lookbackTransactions[0].tradeTime, bollingerSMA);
 
     setLineName("uppper");
-    setLineColor("green");
+    setLineColor("#0095fd");
     drawLine(lookbackTransactions[0].tradeTime, bollingerUpperBand);
 
     setLineName("lower");
-    setLineColor("red");
+    setLineColor("#fd4700");
     drawLine(lookbackTransactions[0].tradeTime, bollingerLowerBand);
     // print("New SMA :" + toString(bollingerSMA));
   }
   if (step > 100 && ((bollingerBackTestTickCounter+1) % 10) == 0)
   {
     setLineName("middle");
-    setLineColor("yellow");
+    setLineColor("grey");
     drawLine(lookbackTransactions[0].tradeTime, bollingerSMA);
 
     setLineName("uppper");
-    setLineColor("green");
+    setLineColor("#0095fd");
     drawLine(lookbackTransactions[0].tradeTime, bollingerUpperBand);
 
     setLineName("lower");
-    setLineColor("red");
+    setLineColor("#fd4700");
     drawLine(lookbackTransactions[0].tradeTime, bollingerLowerBand);    
   }
   
@@ -705,11 +734,24 @@ void bollingerBandsBackTestTick()
       {
         return;
       }
-      if (lockProfit(lookbackTransactions[0].price) == false)
+      if (trailingStop(lookbackTransactions[0].price) == false)
       {
-        // sell(exchangeSetting, symbolSetting, positionVolume, lookbackTransactions[0].price, 0);
+        // draw sell point on the price line(graph)
         drawPoint(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price, true, "sell");
+        setLineName("direction");
+        // draw the profit or loss line
+        if (lookbackTransactions[0].price > lastOwnOrderPrice)
+        {          
+          setLineColor("green");
+        }
+        else
+        {
+          setLineColor("red");
+        }
+        drawLine(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price);   
+        // Sell order notification on console
         print("--- Market sell ordered : "+ toString(positionVolume) + "( price- " + toString(lookbackTransactions[0].price) + ", time- " + timeToString(lookbackTransactions[0].tradeTime, "yyyy-MM-dd hh:mm:ss") + " )");
+        // Updating last own order price
         lastOwnOrderPrice = lookbackTransactions[0].price;
         if (position == "flat")
         {
@@ -742,10 +784,21 @@ void bollingerBandsBackTestTick()
       {
         return;
       }
-      if (lockProfit(lookbackTransactions[0].price) == false)
+      if (trailingStop(lookbackTransactions[0].price) == false)
       {
-        // buy(exchangeSetting, symbolSetting, positionVolume, lookbackTransactions[0].price, 0);
+        // draw buy point on the price line(graph)
         drawPoint(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price, false, "buy");
+        setLineName("direction");
+        // draw the profit or loss line
+        if (lookbackTransactions[0].price > lastOwnOrderPrice)
+        {
+          setLineColor("green");
+        }
+        else
+        {
+          setLineColor("red");
+        }
+        drawLine(lookbackTransactions[0].tradeTime, lookbackTransactions[0].price);   
         print("--- Market buy ordered : "+ toString(positionVolume) + "( price- " + toString(lookbackTransactions[0].price) + ", time- " + timeToString(lookbackTransactions[0].tradeTime, "yyyy-MM-dd hh:mm:ss") + " )");
         lastOwnOrderPrice = lookbackTransactions[0].price;
         if (position == "flat")
@@ -812,3 +865,7 @@ event onTimedOut(integer interval)
     }
   }
 }
+
+// bollingerBands("Centrabit", "LTC/BTC", 100, 2.0, "1m", 0.01);
+bollingerBandsBackTest("Centrabit", "LTC/BTC", 100, 2.0, "1m", 1.0, "2022-11-25 00:00:00", "2022-11-26 20:00:00");
+stopLoss(0.008);
